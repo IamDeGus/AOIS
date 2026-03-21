@@ -39,17 +39,17 @@ class Binary_float:
             value = value[1:]
         elif value[0] == '+':
             value = value[1:]
-        
-        if str(value == 0):
-            return list('00000000011111111111111111111111')
+
+        if int(value) == 0:
+            return bits
 
         val: float = float(value)
         exp: int = 0
 
-        while val >= 2:
+        while val >= 2 and exp <= cls.SHIFT:
             val /= 2
             exp += 1
-        while val < 1:
+        while val < 1 and -exp > cls.SHIFT:
             val *= 2
             exp -= 1
 
@@ -87,7 +87,26 @@ class Binary_float:
 
     def copy(self) -> Binary_float:
         return Binary_float(self.__bits.copy())
+    
+    def to_decimal_float(self) -> float:
+        if int(self) == 0:
+            return 0
+        
+        sign, exp, val = self.unzip()
+        
+        value: float = 0
+        for bit in val[::-1]:
+            value = value / 2 + int(bit)
+        value = value / 2 + 1
+        
+        exponent: int = 0
+        for bit in exp:
+            exponent = exponent * 2 + int(bit)
 
+        exponent -= self.SHIFT
+
+        return ((-1) ** int(sign)) * value * (2 ** exponent)
+    
     def __str__(self) -> str:
         return ''.join(map(str, self.__bits))
 
@@ -100,6 +119,19 @@ class Binary_float:
         val = str(self)[self.EXPONENT + self.SIGN:]
         return sign, exp, val
 
+    @classmethod
+    def val_normalize(cls, val: str) -> tuple:
+        diff = len(val) - cls.FRACTION - 1
+
+        if diff < 0:
+            val = val + '0' * (-diff)
+        if diff > 0:
+            val = val[:-diff]
+
+        val = val[1:]
+
+        return val, diff
+
     def __add__(self, other: Binary_float) -> Binary_float:
         elmnt1 = self.copy()
         elmnt2 = other.copy()
@@ -111,21 +143,29 @@ class Binary_float:
         exp1 = Binary_int(elmnt1.unzip()[1], Representation.DIRECT, 2)
         exp2 = Binary_int(elmnt2.unzip()[1], Representation.DIRECT, 2)
 
-        diff = (exp1 - exp2).to_decimal_int()
+        diff = (exp1 - exp2).direct().to_decimal_int()
+        
+        if int(exp1) == 0:
+            val1 = '0' + elmnt1.unzip()[2]
+        else:
+            val1 = '1' + elmnt1.unzip()[2]
 
-        val1 = '1' + elmnt1.unzip()[2]
-        val2 = '1' + elmnt2.unzip()[2]
+        if int(exp2) == 0:
+            val2 = '0' + elmnt2.unzip()[2]
+        else:
+            val2 = '1' + elmnt2.unzip()[2]
 
         if diff > 0:
-            val2 = ('0' * (diff) + val2)[:self.FRACTION + 1]
+            val2 = ('0' * diff + val2)[:self.FRACTION + 1]
             result_exp = exp1
-
-        if diff < 0:
+        elif diff < 0:
             val1 = ('0' * (-diff) + val1)[:self.FRACTION + 1]
             result_exp = exp2
+        else:
+            result_exp = exp1
 
-        val2 = Binary_int(val2, Representation.DIRECT, 2)
-        val1 = Binary_int(val1, Representation.DIRECT, 2)
+        val2 = Binary_int(val2, Representation.DIRECT, 2, 64)
+        val1 = Binary_int(val1, Representation.DIRECT, 2, 64)
 
         sign1 = elmnt1.unzip()[0]
         sign2 = elmnt2.unzip()[0]
@@ -141,16 +181,85 @@ class Binary_float:
             result_val = val2 - val1
 
         result_val = str(int(result_val))
-        diff = len(result_val) - self.FRACTION - 1
-
-        if diff < 0:
-            result_val = result_val + '0' * (-diff)
-        if diff > 0:
-            result_val = result_val[:-diff]
-
-        result_val = result_val[1:]
+        result_val, diff = self.val_normalize(result_val)
 
         result_exp += Binary_int(str(diff))
+        result_exp = str(result_exp)[-self.EXPONENT:]
+
+        return Binary_float(result_sign + result_exp + result_val, 2)
+
+    def __sub__(self, other: Binary_float) -> Binary_float:
+        sign = (other.__bits[0] + 1) % 2
+        sub_other = Binary_float(str(sign) + str(other)[1:], 2)
+        return self + sub_other
+
+    def __mul__(self, other: Binary_float) -> Binary_float:
+        elmnt1 = self.copy()
+        elmnt2 = other.copy()
+        
+        if int(elmnt1) == 0 or int(elmnt2) == 0:
+            return Binary_float('0')
+
+        result_sign = str((elmnt1.__bits[0] + elmnt2.__bits[0]) % 2)
+
+        exp1 = Binary_int(elmnt1.unzip()[1], Representation.DIRECT, 2)
+        exp2 = Binary_int(elmnt2.unzip()[1], Representation.DIRECT, 2)
+
+        result_exp = (exp1 + exp2 - Binary_int(str(self.SHIFT))).direct()
+
+        if int(str(exp1)) == 0:
+            val1 = '0' + elmnt1.unzip()[2]
+        else:
+            val1 = '1' + elmnt1.unzip()[2]
+
+        if int(str(exp2)) == 0:
+            val2 = '0' + elmnt2.unzip()[2]
+        else:
+            val2 = '1' + elmnt2.unzip()[2]
+
+        result_val = str(int(
+            Binary_int(val1, Representation.DIRECT, 2, 64) *
+            Binary_int(val2, Representation.DIRECT, 2, 64)))
+
+        result_val, diff = self.val_normalize(result_val)
+
+        result_exp += Binary_int(str(diff // 24))
+        result_exp = str(result_exp)[-self.EXPONENT:]
+
+        return Binary_float(result_sign + result_exp + result_val, 2)
+
+    def __truediv__(self, other: Binary_float) -> Binary_float:
+        elmnt1 = self.copy()
+        elmnt2 = other.copy()
+        
+        if int(elmnt1) == 0 and int(elmnt2) != 0:
+            return Binary_float('0')
+
+        result_sign = str((elmnt1.__bits[0] + elmnt2.__bits[0]) % 2)
+
+        exp1 = Binary_int(elmnt1.unzip()[1], Representation.DIRECT, 2)
+        exp2 = Binary_int(elmnt2.unzip()[1], Representation.DIRECT, 2)
+
+        result_exp = (exp1 - exp2 + Binary_int(str(self.SHIFT))).direct()
+
+        if int(str(exp1)) == 0:
+            val1 = '0' + elmnt1.unzip()[2]
+        else:
+            val1 = '1' + elmnt1.unzip()[2]
+
+        if int(str(exp2)) == 0:
+            val2 = '0' + elmnt2.unzip()[2]
+        else:
+            val2 = '1' + elmnt2.unzip()[2]
+            
+        div, _ = (Binary_int(val1, Representation.DIRECT, 2, 64, 10) /
+                  Binary_int(val2, Representation.DIRECT, 2, 64, 10))
+
+        result_val = str(int(div))[-2 * (self.FRACTION + 1):]
+
+        result_val, diff = self.val_normalize(result_val)
+
+        result_exp += Binary_int(str(diff + 13))
         result_exp = str(result_exp)[-self.EXPONENT:]
 
         return Binary_float(result_sign + result_exp + result_val, 2)

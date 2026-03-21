@@ -296,7 +296,7 @@ class TestClassIntBinary:
     @pytest.mark.parametrize(
         "value", 
         [
-            (0), (1), (466), (-5), (-7774), (16)
+            (0), (1), (466), (-5), (-7774), (16), (-1)
         ])
     def test_to_decimal_int(self, value):
         a = Binary_int(str(value))
