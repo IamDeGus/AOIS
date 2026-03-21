@@ -76,8 +76,17 @@ class Gray_bcd:
         return bits
 
     @classmethod
-    def _binary_nibble_to_gray(cls, binary_nibble: Binary_int) -> str:
-        binary = str(binary_nibble)[-cls.DIGIT_BITS:]
+    def _binary_nibble_to_gray(cls, binary_nibble: Binary_int | str) -> str:
+        if isinstance(binary_nibble, Binary_int):
+            binary = str(binary_nibble)[-cls.DIGIT_BITS:]
+        elif isinstance(binary_nibble, str):
+            binary = binary_nibble
+        else:
+            raise TypeError("binary_nibble must be Binary_int or str")
+
+        if len(binary) != cls.DIGIT_BITS:
+            raise ValueError("binary nibble must have 4 bits")
+
         result = binary[0]
 
         for i in range(1, cls.DIGIT_BITS):
@@ -127,36 +136,46 @@ class Gray_bcd:
         if not isinstance(other, Gray_bcd):
             return NotImplemented
 
-        left_digits = self._to_decimal_digits()
-        right_digits = other._to_decimal_digits()
+        left_bcd = self._to_bcd_nibbles()
+        right_bcd = other._to_bcd_nibbles()
 
-        i = len(left_digits) - 1
-        j = len(right_digits) - 1
+        while len(left_bcd) < len(right_bcd):
+            left_bcd.insert(0, "0000")
+        while len(right_bcd) < len(left_bcd):
+            right_bcd.insert(0, "0000")
+
         carry = 0
-        result_digits: list[int] = []
+        result_bcd: list[str] = []
 
-        while i >= 0 or j >= 0 or carry:
-            left = left_digits[i] if i >= 0 else 0
-            right = right_digits[j] if j >= 0 else 0
-            total = left + right + carry
+        for i in range(len(left_bcd) - 1, -1, -1):
+            raw_sum, raw_carry = self._add_binary_nibbles(
+                left_bcd[i], right_bcd[i], carry
+            )
 
-            if total >= 10:
-                total -= 10
-                carry = 1
+            need_correction = raw_carry == 1 or self._binary_nibble_to_int(raw_sum) > 9
+            if need_correction:
+                corrected_sum, correction_carry = self._add_binary_nibbles(
+                    raw_sum, "0110", 0
+                )
+                result_bcd.append(corrected_sum)
+                carry = 1 if raw_carry == 1 or correction_carry == 1 else 0
             else:
+                result_bcd.append(raw_sum)
                 carry = 0
 
-            result_digits.append(total)
-            i -= 1
-            j -= 1
+        if carry == 1:
+            result_bcd.append("0001")
 
-        result_digits.reverse()
+        result_bcd.reverse()
 
-        result_decimal = ""
-        for digit in result_digits:
-            result_decimal += str(digit)
+        while len(result_bcd) > 1 and result_bcd[0] == "0000":
+            result_bcd.pop(0)
 
-        return Gray_bcd(result_decimal)
+        result_gray = ""
+        for bcd_nibble in result_bcd:
+            result_gray += self._binary_nibble_to_gray(bcd_nibble)
+
+        return Gray_bcd(result_gray, 2)
 
     def _normalized_gray_bits(self) -> str:
         bits = str(self)
@@ -191,3 +210,32 @@ class Gray_bcd:
             return [0]
 
         return digits
+
+    def _to_bcd_nibbles(self) -> list[str]:
+        bits = self._normalized_gray_bits()
+        nibbles: list[str] = []
+
+        for i in range(0, len(bits), self.DIGIT_BITS):
+            gray_nibble = bits[i:i + self.DIGIT_BITS]
+            nibbles.append(self._gray_nibble_to_binary(gray_nibble))
+
+        return nibbles
+
+    @staticmethod
+    def _binary_nibble_to_int(nibble: str) -> int:
+        value = 0
+        for bit in nibble:
+            value = value * 2 + int(bit)
+        return value
+
+    @classmethod
+    def _add_binary_nibbles(cls, left: str, right: str, carry: int) -> tuple[str, int]:
+        result = ["0"] * cls.DIGIT_BITS
+        current_carry = carry
+
+        for i in range(cls.DIGIT_BITS - 1, -1, -1):
+            total = int(left[i]) + int(right[i]) + current_carry
+            result[i] = str(total % 2)
+            current_carry = total // 2
+
+        return "".join(result), current_carry
