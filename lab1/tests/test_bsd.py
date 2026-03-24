@@ -54,7 +54,7 @@ class TestGrayBcd:
             ("", 10, ValueError),
             ("010", 2, ValueError),
             ("0102", 2, ValueError),
-            ("1111", 2, ValueError),  # Gray nibble -> binary 1010 (not BCD)
+            ("1111", 2, ValueError),
             (1010, 2, TypeError),
             ("10", 7, ValueError),
         ],

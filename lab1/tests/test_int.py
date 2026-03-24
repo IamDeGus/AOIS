@@ -301,3 +301,16 @@ class TestClassIntBinary:
     def test_to_decimal_int(self, value):
         a = Binary_int(str(value))
         assert a.to_decimal_int() == value
+
+    @pytest.mark.parametrize(
+        "A, B, expected",
+        [
+            (Binary_int('20'), Binary_int('160'), 0.125),
+            (Binary_int('-20'), Binary_int('160'), -0.125),
+            (Binary_int('20'), Binary_int('-160'), -0.125),
+            (Binary_int('-20'), Binary_int('-160'), 0.125),
+        ],
+    )
+    def test_to_decimal_fixed_after_div(self, A, B, expected):
+        quotient, _ = A / B
+        assert quotient.to_decimal_fixed() == expected

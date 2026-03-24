@@ -5,6 +5,7 @@ from .representation import Representation
 class Binary_int:
     SIZE = 32
     SCALE = 5
+    SHIFT = False
 
     def __init__(
             self,
@@ -44,7 +45,7 @@ class Binary_int:
             self.__representation = representation
 
             return
-
+        
         raise ValueError("notation must be 10 or 2")
 
     def from_decimal(self, value: str) -> list[int]:
@@ -138,12 +139,16 @@ class Binary_int:
         return Binary_int(self.__bits, Representation.ONES_COMPLEMENT, 2, self.SIZE, self.SCALE)
 
     def to_decimal_int(self) -> int:
+        
         value = 0
         for bit in self.__bits[1:]:
             value = value * 2 + bit
 
         value *= (-1) ** self.__bits[0]
         return value
+
+    def to_decimal_fixed(self) -> float:
+        return self.to_decimal_int() / (2 ** self.SCALE)
 
     def __str__(self) -> str:
         return ''.join(map(str, self.__bits))
@@ -229,16 +234,16 @@ class Binary_int:
                                                 self.SIZE,
                                                 self.SCALE)
 
-        remainder = Binary_int('0', Representation.DIRECT, 2, self.SIZE, self.SCALE)
+        quotient = Binary_int('0', Representation.DIRECT, 2, self.SIZE, self.SCALE)
 
         while scaled_dividend >= divisor:
             scaled_dividend -= divisor
-            remainder += Binary_int('1', Representation.DIRECT, 2, self.SIZE, self.SCALE)
+            quotient += Binary_int('1', Representation.DIRECT, 2, self.SIZE, self.SCALE)
 
-        remainder.__bits[0] = sign
-        quotient = scaled_dividend
+        quotient.__bits[0] = sign
+        remainder = scaled_dividend
 
-        return remainder, quotient
+        return quotient, remainder
 
     def __ge__(self, other: Binary_int) -> bool:
         if self.__bits[0] != other.__bits[0]:
@@ -262,159 +267,3 @@ class Binary_int:
 
     def __lt__(self, other: Binary_int) -> bool:
         return other > self
-# 3 * 6
-# 00000000000000000000000000000110
-# 00000000000000000000000000010010
-
-
-# 6 / 3 = 2
-# 14 / 2 = 7
-# 01110 / 00010 = 00111
-#
-
-# 3 - 2  +1
-# 1 < 2     1,_
-# 10 - 2 +1
-# ...
-# 2 - 2  +1 1,5
-
-# 101 - 10 +1
-# 011 - 10 +1
-# 001 < 10  1,_
-# 10 - 10 +1
-# 1,1
-#
-
-
-# 1 на 10 нет
-# 11 на 10 - да 11 - 10 = 01 (1)
-# 11 на 10 - да 11 - 10 = 01 (11)
-# 10 на 10 - да 11 - 10 = 01 (111)
-# все -> ...111
-
-# 126 / 3 =
-#  3
-
-    # def __eq__(self, other: object) -> bool:
-    #     if not isinstance(other, Binary):
-    #         return NotImplemented
-    #     return self._bits == other._bits
-
-    # @classmethod
-    # def from_decimal(cls, value: int) -> Binary:
-    #     return cls(value, notation=10)
-
-    # @classmethod
-    # def from_bits(cls, bits: Sequence[int] | str | int) -> Binary:
-    #     return cls(bits, notation=2)
-
-    # @staticmethod
-    # def _from_decimal(value: int | str | Sequence[int] | Binary) -> list[int]:
-    #     if not isinstance(value, int):
-    #         raise TypeError("for notation=10 value must be int")
-    #     if value < 0:
-    #         raise ValueError("only unsigned integers are supported")
-
-    #     if value == 0:
-    #         return [0]
-
-    #     reversed_bits: list[int] = []
-    #     current = value
-    #     while current > 0:
-    #         reversed_bits.append(current % 2)
-    #         current //= 2
-
-    #     bits: list[int] = []
-    #     idx = len(reversed_bits) - 1
-    #     while idx >= 0:
-    #         bits.append(reversed_bits[idx])
-    #         idx -= 1
-    #     return bits
-
-    # @classmethod
-    # def _from_binary(cls, value: int | str | Sequence[int] | Binary) -> list[int]:
-    #     if isinstance(value, str):
-    #         return cls._bits_from_string(value)
-
-    #     if isinstance(value, int):
-    #         return cls._bits_from_binary_int(value)
-
-    #     if isinstance(value, Sequence):
-    #         bits = cls._bits_from_sequence(value)
-    #         return cls._normalize(bits)
-
-    #     raise TypeError("for notation=2 value must be int, str or sequence of bits")
-
-    # @staticmethod
-    # def _bits_from_string(raw: str) -> list[int]:
-    #     if raw == "":
-    #         raise ValueError("binary string cannot be empty")
-
-    #     bits: list[int] = []
-    #     for ch in raw:
-    #         if ch == "0":
-    #             bits.append(0)
-    #             continue
-    #         if ch == "1":
-    #             bits.append(1)
-    #             continue
-    #         raise ValueError("binary string can contain only '0' and '1'")
-    #     return Binary._normalize(bits)
-
-    # @staticmethod
-    # def _bits_from_sequence(raw: Sequence[int]) -> list[int]:
-    #     if len(raw) == 0:
-    #         raise ValueError("bit sequence cannot be empty")
-
-    #     bits: list[int] = []
-    #     for item in raw:
-    #         if not isinstance(item, int):
-    #             raise TypeError("bit sequence must contain only ints 0/1")
-    #         if item not in (0, 1):
-    #             raise ValueError("bit sequence must contain only 0 and 1")
-    #         bits.append(item)
-    #     return bits
-
-    # @staticmethod
-    # def _bits_from_binary_int(raw: int) -> list[int]:
-    #     if raw < 0:
-    #         raise ValueError("binary int cannot be negative")
-
-    #     if raw == 0:
-    #         return [0]
-
-    #     reversed_bits: list[int] = []
-    #     current = raw
-    #     while current > 0:
-    #         digit = current % 10
-    #         if digit not in (0, 1):
-    #             raise ValueError("for notation=2 int must contain only digits 0/1")
-    #         reversed_bits.append(digit)
-    #         current //= 10
-
-    #     bits: list[int] = []
-    #     idx = len(reversed_bits) - 1
-    #     while idx >= 0:
-    #         bits.append(reversed_bits[idx])
-    #         idx -= 1
-    #     return Binary._normalize(bits)
-
-    # @staticmethod
-    # def _normalize(bits: list[int]) -> list[int]:
-    #     first_one = -1
-    #     idx = 0
-    #     while idx < len(bits):
-    #         if bits[idx] == 1:
-    #             first_one = idx
-    #             break
-    #         idx += 1
-
-    #     if first_one == -1:
-    #         return [0]
-
-    #     normalized: list[int] = []
-    #     idx = first_one
-    #     while idx < len(bits):
-    #         normalized.append(bits[idx])
-    #         idx += 1
-    #     return normalized

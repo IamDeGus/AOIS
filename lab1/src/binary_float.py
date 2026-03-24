@@ -40,7 +40,7 @@ class Binary_float:
         elif value[0] == '+':
             value = value[1:]
 
-        if int(value) == 0:
+        if float(value) == 0:
             return bits
 
         val: float = float(value)

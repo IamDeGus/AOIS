@@ -23,10 +23,23 @@ def _read_number(name: str, notation: int) -> str:
     return raw
 
 
+def _read_float_number(name: str, notation: int) -> str:
+    raw = _read_number(name, notation)
+    if notation == 10:
+        return raw.replace(",", ".")
+    return raw
+
+
 def _print_int_result(result: Binary_int) -> None:
     direct = result.direct()
     print("Результат (binary):", str(direct))
     print("Результат (decimal):", direct.to_decimal_int())
+
+
+def _print_int_division_quotient(result: Binary_int) -> None:
+    direct = result.direct()
+    print("Результат (binary):", str(direct))
+    print("Результат (decimal):", direct.to_decimal_fixed())
 
 
 def _print_float_result(result: Binary_float) -> None:
@@ -59,11 +72,11 @@ def _run_int_mode() -> None:
         _print_int_result(left * right)
         return
 
-    remainder, quotient = left / right
+    quotient, remainder = left / right
     print("Частное:")
-    _print_int_result(remainder)
+    _print_int_division_quotient(quotient)
     print("Остаток:")
-    _print_int_result(quotient)
+    _print_int_result(remainder)
 
 
 def _run_float_mode() -> None:
@@ -73,8 +86,8 @@ def _run_float_mode() -> None:
     notation = _read_notation()
     op = _read_choice("Операция (+, -, *, /): ", ("+", "-", "*", "/"))
 
-    left = Binary_float(_read_number("первое", notation), notation=notation)
-    right = Binary_float(_read_number("второе", notation), notation=notation)
+    left = Binary_float(_read_float_number("первое", notation), notation=notation)
+    right = Binary_float(_read_float_number("второе", notation), notation=notation)
 
     if op == "+":
         _print_float_result(left + right)
@@ -122,7 +135,7 @@ def main() -> None:
                 _run_float_mode()
             else:
                 _run_bsd_mode()
-        except Exception as error:  # noqa: BLE001 - simple CLI needs broad guard
+        except Exception as error:  
             print("Ошибка:", error)
 
 
