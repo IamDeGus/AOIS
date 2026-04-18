@@ -1,5 +1,6 @@
 import pytest
 
+from src.core.evaluator import evaluate_expression
 from src.core.parser import parse_expression
 from src.core.truth_table import TruthRow, TruthTable, build_truth_table, from_vector
 from src.minimization import CoverageTable, MinimizedForm
@@ -17,8 +18,26 @@ def test_karnaugh_constant_and_out_of_range_paths() -> None:
     assert const_result.cnf.expression == "1"
 
     five_vars = build_truth_table("a | b | c | d | e", parse_expression("a | b | c | d | e"))
-    limited = km.minimize_karnaugh(five_vars)
-    assert "только для 1..4 переменных" in "\n".join(limited.notes)
+    five_vars_result = km.minimize_karnaugh(five_vars)
+
+    notes = "\n".join(five_vars_result.notes)
+    assert "K-map ab x cde" in notes
+    assert "только для 1..5 переменных" not in notes
+
+    dnf_ast = parse_expression(five_vars_result.dnf.expression)
+    cnf_ast = parse_expression(five_vars_result.cnf.expression)
+    for row in five_vars.rows:
+        env = dict(zip(five_vars.variables, row.values, strict=True))
+        assert evaluate_expression(dnf_ast, env) == row.result
+        assert evaluate_expression(cnf_ast, env) == row.result
+
+    six_vars = TruthTable(
+        expression="fallback",
+        variables=("a", "b", "c", "d", "e", "f"),
+        rows=(),
+    )
+    limited = km.minimize_karnaugh(six_vars)
+    assert "только для 1..5 переменных" in "\n".join(limited.notes)
 
 
 def test_karnaugh_full_zero_and_full_one_vectors() -> None:
@@ -40,9 +59,10 @@ def test_karnaugh_full_zero_and_full_one_vectors() -> None:
 def test_karnaugh_internal_helpers_and_group_selection() -> None:
     assert km._covers_to_pattern((), 0) == ""
     assert km._covers_to_pattern((), 2) == "--"
+    assert km._split_bits(5) == (2, 3)
 
-    with pytest.raises(ValueError, match="только для 1..4"):
-        km._split_bits(5)
+    with pytest.raises(ValueError, match="только для 1..5"):
+        km._split_bits(6)
 
     empty_map = km.KarnaughMap(
         row_vars=(),

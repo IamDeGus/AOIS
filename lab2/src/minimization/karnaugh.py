@@ -59,9 +59,9 @@ def minimize_karnaugh(table: TruthTable) -> MinimizationResult:
             notes=("Карта Карно не требуется для константной функции.",),
         )
 
-    if n > 4:
+    if n > 5:
         baseline = minimize_calculation_tabular(table)
-        note = "Карта Карно поддерживается только для 1..4 переменных. Выведен результат через склейку/покрытие."
+        note = "Карта Карно поддерживается только для 1..5 переменных. Выведен результат через склейку/покрытие."
         return MinimizationResult(method="karnaugh", dnf=baseline.dnf, cnf=baseline.cnf, notes=(note,))
 
     kmap = build_karnaugh_map(table)
@@ -201,39 +201,41 @@ def _target_indexes(kmap: KarnaughMap, *, target: int) -> tuple[int, ...]:
 
 
 def _collect_candidate_groups(kmap: KarnaughMap, *, target: int) -> tuple[KarnaughGroup, ...]:
-    rows = len(kmap.cells)
-    cols = len(kmap.cells[0]) if rows else 0
     variables_count = len(kmap.row_vars) + len(kmap.col_vars)
-
-    if rows == 0 or cols == 0:
+    if variables_count == 0:
         return ()
 
-    by_cells: dict[frozenset[tuple[int, int]], KarnaughGroup] = {}
-    for height in _powers_of_two(rows):
-        for width in _powers_of_two(cols):
-            for start_row in range(rows):
-                for start_col in range(cols):
-                    cells = frozenset(
-                        ((start_row + dr) % rows, (start_col + dc) % cols)
-                        for dr in range(height)
-                        for dc in range(width)
-                    )
-                    if not cells:
-                        continue
-                    if any(kmap.cells[row][col] != target for row, col in cells):
-                        continue
+    target_indexes = set(_target_indexes(kmap, target=target))
+    if not target_indexes:
+        return ()
 
-                    covers = tuple(sorted(kmap.indexes[row][col] for row, col in cells))
-                    pattern = _covers_to_pattern(covers, variables_count)
-                    group = KarnaughGroup(
-                        pattern=pattern,
-                        covers=covers,
-                        cells=tuple(sorted(cells)),
-                        shape=(height, width),
-                    )
-                    by_cells.setdefault(cells, group)
+    index_to_cell = {
+        index: (row, col)
+        for row, row_indexes in enumerate(kmap.indexes)
+        for col, index in enumerate(row_indexes)
+    }
 
-    groups = tuple(by_cells.values())
+    groups: list[KarnaughGroup] = []
+    for pattern in _iter_patterns(variables_count):
+        covers = _covers_for_pattern(pattern=pattern, variables_count=variables_count)
+        if not covers:
+            continue
+
+        cover_set = set(covers)
+        if not cover_set <= target_indexes:
+            continue
+
+        cells = tuple(sorted(index_to_cell[index] for index in covers))
+        shape = _shape_from_pattern(pattern, row_bits=len(kmap.row_vars), col_bits=len(kmap.col_vars))
+        groups.append(
+            KarnaughGroup(
+                pattern=pattern,
+                covers=covers,
+                cells=cells,
+                shape=shape,
+            )
+        )
+
     return tuple(sorted(groups, key=_group_sort_key))
 
 
@@ -476,6 +478,44 @@ def _covers_to_pattern(covers: tuple[int, ...], variables_count: int) -> str:
     return "".join(chars)
 
 
+def _iter_patterns(bits: int) -> tuple[str, ...]:
+    if bits == 0:
+        return ("",)
+
+    tails = _iter_patterns(bits - 1)
+    patterns: list[str] = []
+    for head in ("0", "1", "-"):
+        patterns.extend(head + tail for tail in tails)
+    return tuple(patterns)
+
+
+def _covers_for_pattern(*, pattern: str, variables_count: int) -> tuple[int, ...]:
+    size = 1 << variables_count
+    return tuple(
+        index
+        for index in range(size)
+        if _index_matches_pattern(index=index, pattern=pattern, variables_count=variables_count)
+    )
+
+
+def _index_matches_pattern(*, index: int, pattern: str, variables_count: int) -> bool:
+    for bit_index, char in enumerate(pattern):
+        if char == "-":
+            continue
+
+        bit = (index >> (variables_count - 1 - bit_index)) & 1
+        if bit != int(char):
+            return False
+
+    return True
+
+
+def _shape_from_pattern(pattern: str, *, row_bits: int, col_bits: int) -> tuple[int, int]:
+    free_row = pattern[:row_bits].count("-")
+    free_col = pattern[row_bits:row_bits + col_bits].count("-")
+    return (1 << free_row, 1 << free_col)
+
+
 def _split_bits(variables_count: int) -> tuple[int, int]:
     if variables_count == 1:
         return 0, 1
@@ -485,7 +525,9 @@ def _split_bits(variables_count: int) -> tuple[int, int]:
         return 1, 2
     if variables_count == 4:
         return 2, 2
-    raise ValueError("Карта Карно поддерживается только для 1..4 переменных")
+    if variables_count == 5:
+        return 2, 3
+    raise ValueError("Карта Карно поддерживается только для 1..5 переменных")
 
 
 def _gray_codes(bits: int) -> tuple[int, ...]:
