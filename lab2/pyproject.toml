@@ -1,0 +1,13 @@
+[project]
+name = "lab2"
+version = "0.1.0"
+description = "Logical function analyzer for AOIS lab #2"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
